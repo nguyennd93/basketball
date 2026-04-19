@@ -152,10 +152,11 @@ namespace Basketball
 
         private void AddScore(EHit hit, Vector3 worldPosition, bool anim = false)
         {
+            var prevScore = Score;
             if (_scoreMap.TryGetValue(hit, out int score))
                 Score += score;
             
-            OnScoreChanged?.OnNext(new ScoreEvent(hit, Score, anim));
+            OnScoreChanged?.OnNext(new ScoreEvent(hit, Score, prevScore, anim));
 
             Vector2 canvasPoint = UIController.WorldToCanvasPoint(worldPosition);
             OnHit?.OnNext(new HitEvent() { Hit = hit, BonusScore = score, CanvasPoint = canvasPoint });

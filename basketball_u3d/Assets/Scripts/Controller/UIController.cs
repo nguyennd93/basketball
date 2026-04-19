@@ -15,9 +15,9 @@ namespace Basketball.Controller
         public Canvas Canvas => CanvasRoot.GetComponentInParent<Canvas>();
 
         private IGameplay _iGameplay;
-        
+
         private readonly CompositeDisposable _disposable = new CompositeDisposable();
-        
+
         public void Initialize(GameplayController gameplay)
         {
             _iGameplay = gameplay;
@@ -29,11 +29,11 @@ namespace Basketball.Controller
         {
             _disposable?.Dispose();
         }
-        
+
         private void OnScoreChanged(ScoreEvent evt)
         {
             TextScore.text = evt.NewScore.ToString();
-            if (evt.Animation)
+            if (evt.Animation && evt.PrevScore != evt.NewScore)
             {
                 Tween.Scale(TextScore.transform, 1.3f, 0.15f, Ease.OutBack, 2, CycleMode.Yoyo);
             }
@@ -43,7 +43,8 @@ namespace Basketball.Controller
         {
             Vector2 screenPoint = RectTransformUtility.WorldToScreenPoint(_iGameplay.Camera, worldPosition);
             Camera uiCamera = Canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : Canvas.worldCamera;
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(CanvasRoot, screenPoint, uiCamera, out Vector2 canvasPoint);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(CanvasRoot, screenPoint, uiCamera,
+                out Vector2 canvasPoint);
             return canvasPoint;
         }
     }

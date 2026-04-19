@@ -114,8 +114,9 @@ namespace Basketball.Entity
                 _iGameplay.OnTriggerGoal(collision.gameObject.tag);
             }
             
-            if (!HasScored && collision.collider != null)
+            if (!HasScored && collision.collider != null && !collision.collider.CompareTag("Mesh"))
             {
+                Debug.Log("Collision with: " + collision.collider.name);
                 _goalCollisionCount++;
             }
         }

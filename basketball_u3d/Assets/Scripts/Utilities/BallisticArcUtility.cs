@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Basketball
+namespace Basketball.Utilities
 {
     public static class BallisticArcUtility
     {
