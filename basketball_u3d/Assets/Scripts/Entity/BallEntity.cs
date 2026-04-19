@@ -7,6 +7,7 @@ namespace Basketball.Entity
     public class BallEntity : MonoBehaviour, ISpawn
     {
         [field: SerializeField] public Rigidbody Rigidbody { get; private set; }
+        [field: SerializeField] public SphereCollider SphereCollider { get; private set; }
 
         private Vector3 _previousPosition;
         private int _goalCollisionCount;
@@ -19,19 +20,29 @@ namespace Basketball.Entity
         public void Initialize(IGameplay gameplay)
         {
             _iGameplay = gameplay;
-            transform.position = _previousPosition = _iGameplay.StartPoint.position;
-            Rigidbody.isKinematic = true;
-            Rigidbody.useGravity = false;
+            HoldAt(_iGameplay.StartPoint.position, _iGameplay.StartPoint.rotation);
             _goalCollisionCount = 0;
             HasScored = false;
             EnteredGoalFromTop = false;
         }
 
+        public void HoldAt(Vector3 position, Quaternion rotation)
+        {
+            StopMotionIfNeeded();
+            Rigidbody.isKinematic = true;
+            Rigidbody.useGravity = false;
+            transform.SetPositionAndRotation(position, rotation);
+            _previousPosition = position;
+        }
+
         public void Throw(Vector3 position, Vector3 initialVelocity)
         {
             transform.position = position;
+            _previousPosition = position;
             Rigidbody.isKinematic = false;
             Rigidbody.useGravity = false;
+            Rigidbody.linearVelocity = Vector3.zero;
+            Rigidbody.angularVelocity = Vector3.zero;
             Rigidbody.AddForce(initialVelocity, ForceMode.VelocityChange);
         }
 
@@ -73,22 +84,39 @@ namespace Basketball.Entity
 
         public void OnSpawn()
         {
+            StopMotionIfNeeded();
             Rigidbody.isKinematic = true;
             Rigidbody.useGravity = false;
         }
 
         public void OnStore()
         {
+            StopMotionIfNeeded();
             Rigidbody.isKinematic = true;
             Rigidbody.useGravity = false;
         }
 
+        private void StopMotionIfNeeded()
+        {
+            if (Rigidbody.isKinematic)
+            {
+                return;
+            }
+
+            Rigidbody.linearVelocity = Vector3.zero;
+            Rigidbody.angularVelocity = Vector3.zero;
+        }
+
         private void OnCollisionEnter(Collision collision)
         {
-            if (!HasScored && collision.collider.transform.IsChildOf(_iGameplay.GoalCollider.transform))
+            if (collision.collider != null)
+            {
+                _iGameplay.OnTriggerGoal(collision.gameObject.tag);
+            }
+            
+            if (!HasScored && collision.collider != null)
             {
                 _goalCollisionCount++;
-                _iGameplay?.OnTriggerGoal();
             }
         }
 

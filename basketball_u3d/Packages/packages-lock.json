@@ -1,5 +1,12 @@
 {
   "dependencies": {
+    "com.kyrylokuzyk.primetween": {
+      "version": "1.4.0",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {},
+      "url": "https://registry.npmjs.org"
+    },
     "com.neuecc.unirx": {
       "version": "7.1.0",
       "depth": 0,

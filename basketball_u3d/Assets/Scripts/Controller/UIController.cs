@@ -1,5 +1,6 @@
 using Basketball.Event;
 using Basketball.Interface;
+using PrimeTween;
 using TMPro;
 using UniRx;
 using UnityEngine;
@@ -32,6 +33,10 @@ namespace Basketball.Controller
         private void OnScoreChanged(ScoreEvent evt)
         {
             TextScore.text = evt.NewScore.ToString();
+            if (evt.Animation)
+            {
+                Tween.Scale(TextScore.transform, 1.3f, 0.15f, Ease.OutBack, 2, CycleMode.Yoyo);
+            }
         }
 
         public Vector2 WorldToCanvasPoint(Vector3 worldPosition)

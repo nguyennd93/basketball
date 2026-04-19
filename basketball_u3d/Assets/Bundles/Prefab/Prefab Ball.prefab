@@ -49,6 +49,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   <Rigidbody>k__BackingField: {fileID: 7213371133557799000}
+  <SphereCollider>k__BackingField: {fileID: 6354488381018218179}
 --- !u!54 &7213371133557799000
 Rigidbody:
   m_ObjectHideFlags: 0

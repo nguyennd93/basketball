@@ -6,20 +6,17 @@ namespace Basketball.Controller
     public class AimController : MonoBehaviour
     {
         [field: SerializeField] public LineRenderer AimLine { get; private set; }
+        [field: SerializeField] public Transform TargetDot { get; private set; }
         [SerializeField] private bool showAimLine = true;
 
         [Header("Throw Tuning")]
         [SerializeField] private float aimPlaneZ;
-        [SerializeField] private float aimLineWidth = 0.12f;
         [SerializeField] private int trajectorySteps = 24;
         [SerializeField] private float gravityMultiplier = 1.35f;
         [SerializeField] private float throwVelocityMultiplier = 1f;
         [SerializeField] private float arcHeight = 2.35f;
         [SerializeField] private float distanceArcMultiplier = 0.05f;
         [SerializeField] private float targetLift = 0.15f;
-        [SerializeField] private Vector3 launchOffset = new Vector3(0f, 1.25f, 0f);
-        [SerializeField] private Color aimLineStartColor = new Color(1f, 1f, 1f, 0.95f);
-        [SerializeField] private Color aimLineEndColor = new Color(1f, 0.82f, 0.2f, 0.85f);
 
         public Vector3 EffectiveGravity => Physics.gravity * gravityMultiplier;
 
@@ -28,42 +25,25 @@ namespace Basketball.Controller
         public void Initialize(IGameplay gameplayReference)
         {
             _iGameplay = gameplayReference;
-            EnsureAimLine();
+            ApplyAimLineStyle();
             SetAimLineActive(false);
             HideAim();
-        }
-
-        private void OnValidate()
-        {
-            EnsureAimLine();
-            ApplyAimLineStyle();
-        }
-
-        private void EnsureAimLine()
-        {
-            AimLine.useWorldSpace = true;
-            AimLine.positionCount = 2;
-            AimLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            AimLine.receiveShadows = false;
-            AimLine.alignment = LineAlignment.View;
-            AimLine.numCapVertices = 8;
-            AimLine.textureMode = LineTextureMode.Stretch;
-
-            ApplyAimLineStyle();
         }
 
         private void ApplyAimLineStyle()
         {
             AimLine.positionCount = Mathf.Max(2, trajectorySteps);
-            AimLine.startWidth = aimLineWidth;
-            AimLine.endWidth = aimLineWidth * 0.72f;
-            AimLine.startColor = aimLineStartColor;
-            AimLine.endColor = aimLineEndColor;
         }
 
         public void ShowAim(Vector2 screenPosition)
         {
             if (!showAimLine)
+            {
+                SetAimLineActive(false);
+                return;
+            }
+
+            if (!TryGetAimPlanePoint(screenPosition, out Vector3 targetDotPosition))
             {
                 SetAimLineActive(false);
                 return;
@@ -75,6 +55,7 @@ namespace Basketball.Controller
                 return;
             }
 
+            TargetDot.position = targetDotPosition;
             BuildTrajectory(startPoint, initialVelocity, totalTime);
             SetAimLineActive(true);
         }
@@ -87,6 +68,7 @@ namespace Basketball.Controller
         private void SetAimLineActive(bool isActive)
         {
             AimLine.enabled = isActive;
+            TargetDot.gameObject.SetActive(isActive);
         }
 
         public bool TryGetLaunchData(Vector2 screenPosition, out Vector3 startPoint, out Vector3 initialVelocity, out float totalTime)
@@ -95,10 +77,12 @@ namespace Basketball.Controller
             initialVelocity = Vector3.zero;
             totalTime = 0f;
 
-            if (!TryGetAimPoint(screenPosition, out Vector3 aimPoint))
+            if (!TryGetAimPlanePoint(screenPosition, out Vector3 aimPoint))
             {
                 return false;
             }
+
+            aimPoint.y += targetLift;
 
             return BallisticArcUtility.TrySolveArc(
                 startPoint,
@@ -110,7 +94,7 @@ namespace Basketball.Controller
                 out totalTime) && TryApplyThrowVelocityScale(startPoint.y, aimPoint.y, ref initialVelocity, ref totalTime);
         }
 
-        private bool TryGetAimPoint(Vector2 screenPosition, out Vector3 aimPoint)
+        private bool TryGetAimPlanePoint(Vector2 screenPosition, out Vector3 aimPoint)
         {
             Plane oxyPlane = new Plane(Vector3.forward, new Vector3(0f, 0f, aimPlaneZ));
             Ray ray = _iGameplay.Camera.ScreenPointToRay(screenPosition);
@@ -123,7 +107,6 @@ namespace Basketball.Controller
 
             aimPoint = ray.GetPoint(enter);
             aimPoint.z = aimPlaneZ;
-            aimPoint.y += targetLift;
             return true;
         }
 

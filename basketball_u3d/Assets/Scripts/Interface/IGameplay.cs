@@ -16,6 +16,6 @@ namespace Basketball.Interface
         ISubject<ScoreEvent> OnScoreChanged { get; }
 
         Vector3 GetGoalPosition();
-        void OnTriggerGoal();
+        void OnTriggerGoal(string colliderTag);
     }
 }

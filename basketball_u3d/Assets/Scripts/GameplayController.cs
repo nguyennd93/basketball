@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Basketball.Controller;
 using Basketball.Entity;
 using Basketball.Event;
+using Basketball.Info;
 using Basketball.Interface;
 using Basketball.Utilities.Pool;
 using UniRx;
@@ -17,6 +18,7 @@ namespace Basketball
         [field: SerializeField]
         public UIController UIController { get; private set; }
 
+        [field: SerializeField] public SoundController SoundController { get; private set; }
         [field: SerializeField] public EffectController EffectController { get; private set; }
         [field: SerializeField] public InputController InputController { get; private set; }
         [field: SerializeField] public AimController AimController { get; private set; }
@@ -30,6 +32,11 @@ namespace Basketball
         [field: SerializeField] public Transform LimitLine { get; private set; }
         [field: SerializeField] public Transform StartPoint { get; private set; }
         [field: SerializeField] public BallEntity PrefabBall { get; private set; }
+        [field: SerializeField] public float SpawnBallDelay { get; private set; } = 1f;
+
+        [field: Header("Score Config")]
+        [field: SerializeField]
+        public List<ScoreInfo> ScoreInfos { get; private set; }
 
         #region Properties
 
@@ -43,6 +50,8 @@ namespace Basketball
         private readonly List<BallEntity> _activeBalls = new();
         private readonly List<BallEntity> _storeBalls = new();
         private ObjectPool<BallEntity> _poolBalls;
+        private readonly Dictionary<EHit, int> _scoreMap = new();
+        private Coroutine _spawnBallCoroutine;
 
         private bool _isInitialized = false;
         private bool _isAiming;
@@ -54,6 +63,12 @@ namespace Basketball
         {
             var ballEntity = GameObject.Instantiate(PrefabBall, transform);
             _poolBalls = new ObjectPool<BallEntity>(ballEntity, transform);
+            Screen.SetResolution(720, 1280, true);
+
+            foreach (var info in ScoreInfos)
+            {
+                _scoreMap[info.Type] = info.BonusScore;
+            }
         }
 
         private void Initialize()
@@ -65,6 +80,7 @@ namespace Basketball
 
             UIController.Initialize(this);
             EffectController.Initialize(this);
+            SoundController.Initialize();
             InputController.Initialize(this);
             AimController.Initialize(this);
 
@@ -77,6 +93,7 @@ namespace Basketball
         {
             UIController.Dispose();
             EffectController.Dispose();
+            SoundController.Dispose();
         }
 
         #endregion
@@ -86,6 +103,7 @@ namespace Basketball
         private void Start()
         {
             Initialize();
+            SoundController.PlayAudio("bgm");
         }
 
         private void OnDestroy()
@@ -103,6 +121,8 @@ namespace Basketball
 
         private void LateUpdate()
         {
+            SyncReadyBallToStartPoint();
+
             for (int i = _activeBalls.Count - 1; i >= 0; i--)
             {
                 BallEntity ball = _activeBalls[i];
@@ -110,14 +130,15 @@ namespace Basketball
 
                 if (!ball.HasScored && ball.TryResolveScore(out EHit hit))
                 {
-                    AddScore(hit, 1, GoalCollider.transform.position + new Vector3(0f, 0.5f, 0f), true);
+                    SoundController.PlayAudio("score");
+                    AddScore(hit, GoalCollider.transform.position + new Vector3(0f, 0.5f, 0f), true);
                 }
 
                 if (ball.transform.position.y < LimitLine.position.y && ball.Rigidbody.linearVelocity.y < 0f)
                 {
                     _storeBalls.Add(ball);
 
-                    if (!ball.HasScored) AddScore(EHit.Miss, 0, ball.transform.position, true);
+                    if (!ball.HasScored) AddScore(EHit.Miss, ball.transform.position, true);
                     StartCoroutine(CRStoreBall(ball));
                 }
             }
@@ -129,18 +150,26 @@ namespace Basketball
 
         public Vector3 GetGoalPosition() => GoalCollider.transform.position;
 
-        public void AddScore(EHit hit, int score, Vector3 worldPosition, bool anim = false)
+        private void AddScore(EHit hit, Vector3 worldPosition, bool anim = false)
         {
-            Score += score;
+            if (_scoreMap.TryGetValue(hit, out int score))
+                Score += score;
+            
             OnScoreChanged?.OnNext(new ScoreEvent(hit, Score, anim));
 
             Vector2 canvasPoint = UIController.WorldToCanvasPoint(worldPosition);
             OnHit?.OnNext(new HitEvent() { Hit = hit, BonusScore = score, CanvasPoint = canvasPoint });
         }
 
-        public void OnTriggerGoal()
+        public void OnTriggerGoal(string colliderTag)
         {
-            GoalEntity.TriggerShake();
+            if (colliderTag == "Goal")
+            {
+                SoundController.PlayAudio("hit_goal");
+                GoalEntity.TriggerShake();
+            }
+            else if (colliderTag == "Ground")
+                SoundController.PlayAudio("hit_ground");
         }
 
         #endregion
@@ -186,6 +215,8 @@ namespace Basketball
         {
             _currentBall = _poolBalls.Get();
             _currentBall.Initialize(this);
+            _currentBall.HoldAt(StartPoint.position, StartPoint.rotation);
+            GoalEntity.AddBallCollider(_currentBall.SphereCollider);
             _canThrow = true;
         }
 
@@ -199,18 +230,25 @@ namespace Basketball
 
             BallEntity thrownBall = _currentBall;
             thrownBall.Throw(launchOrigin, initialVelocity);
+            SoundController.PlayAudio("throw");
 
             _activeBalls.Add(thrownBall);
 
             _currentBall = null;
             _canThrow = false;
-            StartCoroutine(CRSpawnBall());
+            if (_spawnBallCoroutine != null)
+            {
+                StopCoroutine(_spawnBallCoroutine);
+            }
+
+            _spawnBallCoroutine = StartCoroutine(CRSpawnBall());
         }
 
         private IEnumerator CRSpawnBall()
         {
-            yield return new WaitForSeconds(0.5f);
+            yield return new WaitForSeconds(SpawnBallDelay);
             SpawnReadyBall();
+            _spawnBallCoroutine = null;
         }
 
         private IEnumerator CRStoreBall(BallEntity ball)
@@ -218,7 +256,18 @@ namespace Basketball
             yield return new WaitForSeconds(2.0f);
             _activeBalls.Remove(ball);
             _storeBalls.Remove(ball);
+            GoalEntity.RemoveBallCollider(ball.SphereCollider);
             _poolBalls.Store(ball);
+        }
+
+        private void SyncReadyBallToStartPoint()
+        {
+            if (!_canThrow || _currentBall == null)
+            {
+                return;
+            }
+
+            _currentBall.HoldAt(StartPoint.position, StartPoint.rotation);
         }
     }
 }
