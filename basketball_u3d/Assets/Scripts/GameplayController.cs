@@ -131,6 +131,7 @@ namespace Basketball
                 if (!ball.HasScored && ball.TryResolveScore(out EHit hit))
                 {
                     SoundController.PlayAudio("score");
+                    GoalEntity.TriggerScoreGlow(GoalCollider);
                     AddScore(hit, GoalCollider.transform.position + new Vector3(0f, 0.5f, 0f), true);
                 }
 
